@@ -341,7 +341,36 @@ swiftc -swift-version 6 \
 
 ### Package and distribute
 
-For distribution, open the package in Xcode, configure a Developer ID application identity, archive it, and notarize the resulting app. Container Desktop is intentionally not sandboxed because it launches the installed CLI and accesses user-selected build contexts.
+Create a release `.app` bundle with:
+
+```sh
+./scripts/build-app.sh
+```
+
+The finished application is written to:
+
+```text
+dist/Container Desktop.app
+```
+
+Open the local build with:
+
+```sh
+open "dist/Container Desktop.app"
+```
+
+By default, the script applies an ad-hoc signature suitable for local development. To sign a distributable build with a Developer ID certificate:
+
+```sh
+CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+APP_VERSION="0.1.0" \
+BUILD_NUMBER="1" \
+./scripts/build-app.sh
+```
+
+`BUNDLE_IDENTIFIER` can also be supplied to replace the default `com.containerdesktop.app`. Developer ID builds must still be submitted to Apple for notarization before public distribution.
+
+The script performs a release build, packages SwiftPM resources, generates `AppIcon.icns` from the v3 icon, writes bundle metadata, signs the application, and verifies its signature. Container Desktop is intentionally not sandboxed because it launches the installed CLI and accesses user-selected build contexts.
 
 ## Current scope
 

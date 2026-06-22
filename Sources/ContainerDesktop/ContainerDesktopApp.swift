@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         DispatchQueue.main.async {
             NSApp.windows.forEach {
+                $0.toolbar = nil
                 $0.titleVisibility = .hidden
                 $0.titlebarAppearsTransparent = true
                 $0.styleMask.insert(.fullSizeContentView)

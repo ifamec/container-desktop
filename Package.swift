@@ -10,10 +10,7 @@ let package = Package(
             name: "ContainerDesktop",
             path: ".",
             exclude: [
-                ".gitignore", "README.md", "PONYTAIL_SKILL.md", "Tests", "Example",
-                "Assets/container-desktop-app-icon.png",
-                "Assets/container-desktop-app-icon-v2.png",
-                "Assets/container-desktop-app-icon-v2-source.png",
+                ".gitignore", "README.md", "PONYTAIL_SKILL.md", "Tests", "Example", "scripts", "Packaging",
                 "Assets/container-desktop-app-icon-v3-source.png"
             ],
             sources: ["Sources/ContainerDesktop"],

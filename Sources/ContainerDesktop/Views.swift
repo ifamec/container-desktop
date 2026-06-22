@@ -53,65 +53,54 @@ enum AppSection: String, CaseIterable, Identifiable {
 struct RootView: View {
     @ObservedObject var store: AppStore
     @State private var section: AppSection? = .dashboard
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        Group {
+        HStack(spacing: 0) {
+            sidebar
+            Divider()
+
             if section == .containers || section == .images {
-                NavigationSplitView(columnVisibility: $columnVisibility) {
-                    sidebar
-                } detail: {
-                    GeometryReader { geometry in
-                        let columnWidth = max(340, (geometry.size.width - 1) / 2)
-                        HStack(spacing: 0) {
-                            Group {
-                                switch section {
-                                case .containers: ContainerListView(store: store)
-                                case .images: ImageListView(store: store)
-                                default: EmptyView()
-                                }
+                GeometryReader { geometry in
+                    let columnWidth = max(340, (geometry.size.width - 1) / 2)
+                    HStack(spacing: 0) {
+                        Group {
+                            switch section {
+                            case .containers: ContainerListView(store: store)
+                            case .images: ImageListView(store: store)
+                            default: EmptyView()
                             }
-                            .frame(width: columnWidth)
-                            .frame(maxHeight: .infinity)
-
-                            Divider()
-
-                            Group {
-                                switch section {
-                                case .containers: ContainerDetailView(store: store)
-                                case .images: ImageDetailView(store: store)
-                                default: EmptyView()
-                                }
-                            }
-                            .frame(width: columnWidth)
-                            .frame(maxHeight: .infinity)
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                        .frame(width: columnWidth)
+                        .frame(maxHeight: .infinity)
+
+                        Divider()
+
+                        Group {
+                            switch section {
+                            case .containers: ContainerDetailView(store: store)
+                            case .images: ImageDetailView(store: store)
+                            default: EmptyView()
+                            }
+                        }
+                        .frame(width: columnWidth)
+                        .frame(maxHeight: .infinity)
                     }
-                    .ignoresSafeArea(.container, edges: .top)
-                    .navigationSplitViewColumnWidth(min: 680, ideal: 1040)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 }
+                .ignoresSafeArea(.container, edges: .top)
             } else {
-                NavigationSplitView(columnVisibility: $columnVisibility) {
-                    sidebar
-                } detail: {
-                    Group {
-                        switch section ?? .dashboard {
-                        case .dashboard: DashboardView(store: store)
-                        case .builds: BuildsView(store: store)
-                        case .settings: SettingsView(store: store)
-                        case .containers: ContainerListView(store: store)
-                        case .images: ImageListView(store: store)
-                        }
+                Group {
+                    switch section ?? .dashboard {
+                    case .dashboard: DashboardView(store: store)
+                    case .builds: BuildsView(store: store)
+                    case .settings: SettingsView(store: store)
+                    case .containers: ContainerListView(store: store)
+                    case .images: ImageListView(store: store)
                     }
-                    .ignoresSafeArea(.container, edges: .top)
-                    .navigationSplitViewColumnWidth(min: 700, ideal: 980)
                 }
+                .ignoresSafeArea(.container, edges: .top)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        }
-        .toolbar(removing: .sidebarToggle)
-        .onChange(of: columnVisibility) { _, _ in
-            if columnVisibility != .all { columnVisibility = .all }
         }
     }
 
@@ -120,6 +109,8 @@ struct RootView: View {
             List(AppSection.allCases, selection: $section) { item in
                 Label(item.rawValue, systemImage: item.icon)
             }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
             Divider()
             HStack(spacing: 8) {
                 Circle().fill(statusColor).frame(width: 8, height: 8)
@@ -133,7 +124,8 @@ struct RootView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
         }
-        .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 280)
+        .frame(width: 180)
+        .background(.regularMaterial)
     }
 
     private var statusColor: Color {
