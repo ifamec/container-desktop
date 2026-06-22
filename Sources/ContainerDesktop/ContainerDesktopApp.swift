@@ -28,7 +28,10 @@ struct ContainerDesktopApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        if let iconURL = Bundle.module.url(forResource: "container-desktop-app-icon-v3", withExtension: "png"),
+        let packagedIcon = Bundle.main.url(forResource: "AppIcon", withExtension: "icns")
+        let developmentIcon = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appending(path: "Assets/container-desktop-app-icon-v3.png")
+        if let iconURL = packagedIcon ?? (FileManager.default.fileExists(atPath: developmentIcon.path) ? developmentIcon : nil),
            let icon = NSImage(contentsOf: iconURL) {
             NSApp.applicationIconImage = icon
         }

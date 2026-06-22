@@ -1,85 +1,78 @@
 # Container Desktop
 
-A native SwiftUI desktop interface for [Apple container](https://github.com/apple/container). It manages the service, containers, OCI images, builds, logs, resource statistics, and interactive shells without hiding the underlying CLI commands.
+A native SwiftUI interface for [Apple container](https://github.com/apple/container). Container Desktop provides familiar container, image, build, log, and resource-management workflows while keeping the underlying CLI commands visible.
 
-Container Desktop uses Apple's `container` command as its backend. Images remain OCI-compatible, so images from Docker Hub and other standard registries can be used without conversion.
+## Features
 
-## Contents
+- Start and stop the Apple container service
+- Run, inspect, stop, restart, kill, and delete containers
+- View logs and resource statistics
+- Open interactive container shells in Terminal
+- Pull, tag, push, and delete OCI images
+- Build Dockerfiles with live output and cancellation
+- Configure ports, environment variables, mounts, CPU, and memory
+- Save reusable run configurations
+- Export sanitized diagnostics
 
-- [Requirements](#requirements)
-- [Install and run](#install-and-run)
-- [Using Container Desktop](#using-container-desktop)
-- [Example: run an existing Docker image](#example-run-an-existing-docker-image)
-- [Example: build a web server](#example-build-a-web-server)
-- [Example: build an existing Dockerfile project](#example-build-an-existing-dockerfile-project)
-- [Example: mount an existing website](#example-mount-an-existing-website)
-- [Publish an image](#publish-an-image)
-- [CLI reference](#common-cli-equivalents)
-- [Troubleshooting](#troubleshooting)
-- [Development](#development)
+Compose projects, automatic CLI installation, registry credential UI, and embedded terminal emulation are not currently supported.
 
 ## Requirements
 
 - Apple silicon Mac
 - macOS 26 or newer
-- Apple `container` installed from its signed release package
-- Swift 6.2+ to build from source; full Xcode is recommended for signing and packaging
+- Apple `container` installed from its [signed release package](https://github.com/apple/container/releases/latest)
+- Swift 6.2 or newer when building Container Desktop from source
 
-Apple container and Container Desktop currently target Apple silicon. Intel Macs and older macOS releases are not supported.
+Apple container produces and consumes standard OCI images, including compatible images published on Docker Hub and GHCR.
 
-## Install and run
+## Quick start
 
-### 1. Install Apple container
-
-Download the signed installer from the [Apple container releases page](https://github.com/apple/container/releases/latest), then verify the installation:
+Install Apple container, then confirm it is available:
 
 ```sh
 container system version
-```
-
-Container Desktop does not install or update Apple's CLI automatically.
-
-### 2. Start the service
-
-Open Container Desktop and select **Start Service** on the Dashboard. On first use, Apple container may need to download its Linux kernel and supporting images.
-
-The equivalent terminal command is:
-
-```sh
 container system start
 ```
 
-### 3. Launch Container Desktop from source
+Build the macOS application:
 
 ```sh
-swift build
+./scripts/build-app.sh
+open "dist/Container Desktop.app"
+```
+
+The finished application is located at `dist/Container Desktop.app`.
+
+For development, run directly through Swift Package Manager:
+
+```sh
 swift run ContainerDesktop
 ```
 
-## Using Container Desktop
+## Using the app
+
+### Dashboard
+
+The Dashboard shows service health, running and stopped container counts, image count, and recent operations. Start the Apple container service here when it is stopped.
 
 ### Containers
 
-Open **Containers** to see running and stopped containers. Select **Run** to configure a new container:
+Select **Run** and configure:
 
-- **Image:** OCI image reference, such as `docker.io/library/nginx:alpine`
-- **Name:** friendly container name
-- **Command:** optional command and arguments that replace the image default
+- **Image:** OCI reference such as `docker.io/library/nginx:alpine`
+- **Name:** friendly container identifier
+- **Command:** optional process and arguments
 - **Environment:** one `KEY=value` entry per line
-- **Ports:** one `host-port:container-port` mapping per line
+- **Ports:** one `host-port:container-port` entry per line
 - **Mounts:** one Apple container mount specification per line
-- **CPU / Memory:** optional VM limits, such as `2` and `1G`
-- **Auto-remove:** delete the container automatically when it stops
+- **CPU / Memory:** optional limits such as `2` and `1G`
+- **Auto-remove:** delete the container after it stops
 
-The command preview shows exactly what Container Desktop will execute. Saved configurations can be reused from the **Saved** menu.
-
-Select a container to view its state, IP address, resource use, logs, and inspection data. Running containers also provide **Shell**, **Stop**, **Restart**, and **Kill** actions.
+The form shows the exact generated CLI command. Select an existing container to view details, logs, inspect output, statistics, and lifecycle actions.
 
 ### Images
 
-Open **Images** to pull, tag, push, or delete OCI images. Docker Hub is the default registry, but fully qualified references are recommended because they make the image source unambiguous.
-
-Examples:
+Pull images with a fully qualified reference when possible:
 
 ```text
 docker.io/library/alpine:latest
@@ -87,31 +80,38 @@ docker.io/library/nginx:alpine
 ghcr.io/owner/application:v1
 ```
 
+Pulling an image does not create a container. Select the downloaded image and choose **Run** to create one.
+
+Registry authentication is performed in Terminal so Container Desktop never collects passwords:
+
+```sh
+container registry login REGISTRY
+```
+
 ### Builds
 
-Open **Builds**, choose a build-context directory, optionally choose a Dockerfile, enter an image tag, and select **Build**. Build output appears live and the operation can be cancelled.
+Choose a build-context directory, optionally select a Dockerfile, enter an image tag, and choose **Build Image**. The context contains every local file available to Dockerfile `COPY` and `ADD` instructions.
 
-The context directory contains the Dockerfile and every local file available to `COPY` and `ADD` instructions.
+### Settings
 
-## Example: run an existing Docker image
+Settings control the CLI path, refresh interval, default shell, operation-history retention, service state, and diagnostics export.
 
-Docker Hub images use the OCI image format supported by Apple container. You do not need Docker Desktop to pull or run them.
+## Guides
 
-This example runs the official nginx Alpine image on port 8080.
+### Run an existing Docker image
 
-### In Container Desktop
+This example runs the official nginx Alpine image at [http://localhost:8080](http://localhost:8080).
 
-1. Open **Images**, select **Pull**, and enter `docker.io/library/nginx:alpine`.
-2. Wait for the pull operation to finish. The downloaded image appears under **Images**, not **Containers**—pulling an image does not create a container.
-3. Select the pulled image and click **Run**. The image field is filled automatically.
-4. Set **Name** to `example-nginx`.
-5. Add `8080:80` under **Ports**.
-6. Select **Run**. The new container now appears under **Containers**.
-7. Open [http://localhost:8080](http://localhost:8080).
+In Container Desktop:
 
-Use **Logs** to inspect nginx output and **Shell** to open an interactive shell in Terminal.
+1. Open **Images** and pull `docker.io/library/nginx:alpine`.
+2. Wait for the pull operation to finish.
+3. Select the image and choose **Run**.
+4. Set the name to `example-nginx`.
+5. Add `8080:80` under Ports.
+6. Choose **Run**.
 
-### CLI equivalent
+CLI equivalent:
 
 ```sh
 container image pull docker.io/library/nginx:alpine
@@ -124,7 +124,7 @@ container run \
 open http://localhost:8080
 ```
 
-Clean up afterward:
+Clean up:
 
 ```sh
 container stop example-nginx
@@ -132,51 +132,22 @@ container delete example-nginx
 container image delete docker.io/library/nginx:alpine
 ```
 
-## Example: build a web server
+### Build a web server
 
-Create a directory named `hello-web` containing these two files.
+The repository includes a working example under `Example/hello-web`:
 
-### `Dockerfile`
-
-```dockerfile
-FROM docker.io/library/python:3.13-alpine
-WORKDIR /site
-COPY index.html .
-EXPOSE 8000
-CMD ["python3", "-m", "http.server", "8000", "--bind", "0.0.0.0"]
+```text
+Example/hello-web/
+├── Dockerfile
+└── index.html
 ```
 
-### `index.html`
+Build it in the app by selecting `Example/hello-web` as the context and `hello-web:latest` as the tag. Run the resulting image with port `8080:8000`.
 
-```html
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Hello from Apple container</title>
-  </head>
-  <body>
-    <h1>Hello from Container Desktop!</h1>
-  </body>
-</html>
-```
-
-### Build and run in Container Desktop
-
-1. Open **Builds** and choose the `hello-web` directory as the context.
-2. Enter `hello-web:latest` as the tag.
-3. Select **Build** and wait for the operation to complete.
-4. Open **Containers** and select **Run**.
-5. Set **Image** to `hello-web:latest` and **Name** to `hello-web`.
-6. Add `8080:8000` under **Ports**.
-7. Select **Run**, then open [http://localhost:8080](http://localhost:8080).
-
-### CLI equivalent
-
-Run these commands from the `hello-web` directory:
+CLI equivalent:
 
 ```sh
-container build --tag hello-web:latest --file Dockerfile .
+container build --tag hello-web:latest Example/hello-web
 container run \
   --name hello-web \
   --detach \
@@ -186,7 +157,7 @@ container run \
 open http://localhost:8080
 ```
 
-Inspect the running application:
+Inspect the application:
 
 ```sh
 container logs hello-web
@@ -194,34 +165,21 @@ container stats --no-stream hello-web
 container exec --interactive --tty hello-web sh
 ```
 
-## Example: build an existing Dockerfile project
+### Build an existing Dockerfile project
 
-Most existing Dockerfile projects can be built directly because Apple container uses standard Dockerfiles and OCI images.
-
-Given this project:
+Most standard Dockerfiles work directly with Apple container:
 
 ```text
 my-application/
 ├── Dockerfile
 ├── .dockerignore
-├── package.json
 └── src/
 ```
 
-### In Container Desktop
-
-1. Open **Builds**.
-2. Choose `my-application` as the build context.
-3. Leave the Dockerfile field empty to use `my-application/Dockerfile`, or select a differently named file.
-4. Enter `my-application:local` as the tag.
-5. Select **Build**.
-6. After the build succeeds, open **Containers** and run `my-application:local` with the ports and environment variables expected by the application.
-
-### CLI equivalent
+Choose `my-application` as the build context and enter `my-application:local` as the tag. Files referenced by `COPY` must be inside the selected context.
 
 ```sh
-cd my-application
-container build --tag my-application:local .
+container build --tag my-application:local my-application
 container run \
   --name my-application \
   --detach \
@@ -230,23 +188,11 @@ container run \
   my-application:local
 ```
 
-Adjust the port and environment variables for the application. Multi-stage Dockerfiles and images referenced by `FROM` work normally when they support the target platform.
+Adjust ports and environment values for the application. Prefer base images that provide a `linux/arm64` variant.
 
-Docker Compose files are not currently imported. Translate each service into a saved Container Desktop run configuration, or use the underlying CLI until project support is added.
+### Mount an existing website
 
-## Example: mount an existing website
-
-You can serve local files without rebuilding an image. Replace `/absolute/path/to/site` with a real absolute directory containing an `index.html` file.
-
-### In Container Desktop
-
-Run `docker.io/library/nginx:alpine` with:
-
-- **Name:** `mounted-site`
-- **Ports:** `8080:80`
-- **Mounts:** `type=bind,source=/absolute/path/to/site,target=/usr/share/nginx/html,readonly`
-
-### CLI equivalent
+Run nginx with a read-only host directory:
 
 ```sh
 container run \
@@ -257,127 +203,109 @@ container run \
   docker.io/library/nginx:alpine
 ```
 
-Changes made to the host directory are immediately visible to nginx. The `readonly` option prevents the container from modifying those files.
+In the app, enter the same value under Mounts and `8080:80` under Ports.
 
-## Publish an image
-
-Authenticate in Terminal because Container Desktop intentionally does not collect registry passwords:
+### Publish an image
 
 ```sh
 container registry login ghcr.io
-```
-
-Tag and push the image from Container Desktop's **Images** screen, or use:
-
-```sh
 container image tag hello-web:latest ghcr.io/OWNER/hello-web:v1
 container image push ghcr.io/OWNER/hello-web:v1
 ```
 
-Replace `OWNER` with your registry account or organization. Ensure the destination repository exists and your token has permission to publish packages.
+The destination repository must exist and the registry token must permit package publication.
 
-## Common CLI equivalents
+## CLI reference
 
 | Task | Command |
 | --- | --- |
-| Check versions | `container system version` |
+| Check version | `container system version` |
 | Start service | `container system start` |
 | Stop service | `container system stop` |
-| List all containers | `container list --all` |
-| Start a container | `container start NAME` |
-| Stop a container | `container stop NAME` |
-| Delete a container | `container delete NAME` |
+| List containers | `container list --all` |
+| Start container | `container start NAME` |
+| Stop container | `container stop NAME` |
+| Delete container | `container delete NAME` |
 | Follow logs | `container logs --follow NAME` |
-| Open a shell | `container exec --interactive --tty NAME sh` |
-| Show resource use | `container stats NAME` |
+| Open shell | `container exec --interactive --tty NAME sh` |
+| View resources | `container stats NAME` |
 | List images | `container image list` |
-| Pull an image | `container image pull IMAGE` |
-| Build an image | `container build --tag NAME .` |
-
-## Troubleshooting
-
-### Apple container is not installed
-
-Install it from Apple's signed release package. If it is installed in a custom location, enter the executable path under **Settings → CLI path**.
-
-### Service is stopped
-
-Select **Start Service** on the Dashboard or run:
-
-```sh
-container system start
-```
-
-### A port is already in use
-
-Choose a different host port. For example, change `8080:80` to `8081:80`, then open `http://localhost:8081`.
-
-### An image requires Intel Linux
-
-Prefer images that publish a `linux/arm64` variant. Apple container can use Rosetta for some `linux/amd64` workloads, but Container Desktop does not currently expose the `--rosetta` option in its run form.
-
-### Registry authentication is required
-
-Run `container registry login REGISTRY` in Terminal. Secrets are handled by Apple container and are never added to Container Desktop command history or diagnostics.
-
-### Build cannot find a file
-
-Confirm that the file is inside the selected build-context directory and is not excluded by `.dockerignore`. Dockerfile `COPY` sources are resolved relative to the context, not relative to the Dockerfile location.
+| Pull image | `container image pull IMAGE` |
+| Build image | `container build --tag NAME .` |
 
 ## Development
 
-### Test
+### Project structure
 
-The command-line-only Swift toolchain on some Macs omits XCTest. The dependency-free core test harness can always be run with:
-
-```sh
-swiftc -swift-version 6 \
-  Sources/ContainerDesktop/Models.swift \
-  Sources/ContainerDesktop/CLI.swift \
-  Tests/ContainerDesktopTests/ContainerDesktopTests.swift \
-  -o .build/container-desktop-core-tests
-.build/container-desktop-core-tests
+```text
+Sources/ContainerDesktop/   App, CLI client, models, state, and SwiftUI views
+Tests/ContainerDesktopTests Dependency-free core unit tests
+Example/hello-web/          Example Dockerfile project
+Assets/                     Application icon sources
+Packaging/                  Info.plist and signing entitlements
+scripts/                    Test and application-build scripts
 ```
 
-### Package and distribute
+### Build
 
-Create a release `.app` bundle with:
+```sh
+swift build
+```
+
+### Test
+
+```sh
+./scripts/test.sh
+```
+
+The suite covers run arguments, command quoting, redaction, current and legacy JSON formats, registry references, stats, status detection, errors, logs, process execution, and timeouts.
+
+### Build the `.app`
 
 ```sh
 ./scripts/build-app.sh
 ```
 
-The finished application is written to:
+The script performs a release build, generates `AppIcon.icns`, writes bundle metadata, applies a signature, verifies it, and creates:
 
 ```text
 dist/Container Desktop.app
 ```
 
-Open the local build with:
-
-```sh
-open "dist/Container Desktop.app"
-```
-
-By default, the script applies an ad-hoc signature suitable for local development. To sign a distributable build with a Developer ID certificate:
+The default ad-hoc signature is suitable for local builds. For Developer ID signing:
 
 ```sh
 CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
 APP_VERSION="0.1.0" \
 BUILD_NUMBER="1" \
+BUNDLE_IDENTIFIER="com.example.containerdesktop" \
 ./scripts/build-app.sh
 ```
 
-`BUNDLE_IDENTIFIER` can also be supplied to replace the default `com.containerdesktop.app`. Developer ID builds must still be submitted to Apple for notarization before public distribution.
+Developer ID builds must be notarized before public distribution. Container Desktop is intentionally not sandboxed because it executes the installed CLI and accesses user-selected build contexts.
 
-The script performs a release build, packages SwiftPM resources, generates `AppIcon.icns` from the v3 icon, writes bundle metadata, signs the application, and verifies its signature. Container Desktop is intentionally not sandboxed because it launches the installed CLI and accesses user-selected build contexts.
+## Troubleshooting
 
-## Current scope
+### Apple container is not detected
 
-- Service detection and start/stop controls
-- Container run, start, stop, restart, kill, delete, inspect, logs, stats, and Terminal shell
-- Image pull, tag, push, and delete
-- Dockerfile builds with live output and cancellation
-- Saved run configurations, command previews, settings, and sanitized diagnostics
+Install Apple's signed package or set its executable path under Settings. The common path is `/usr/local/bin/container`.
 
-Compose projects, automatic CLI installation, registry credential UI, and embedded terminal emulation are intentionally deferred.
+### Service is stopped
+
+Start it from the Dashboard or run `container system start`.
+
+### A port is already in use
+
+Choose another host port. For example, replace `8080:80` with `8081:80`.
+
+### Registry authentication fails
+
+Run `container registry login REGISTRY` in Terminal. Credentials are managed by Apple container and omitted from Container Desktop diagnostics.
+
+### A build cannot find a file
+
+Confirm that the file is inside the build context and is not excluded by `.dockerignore`.
+
+### An image only supports Intel Linux
+
+Prefer a `linux/arm64` image. Apple container can use Rosetta for some `linux/amd64` workloads, but the current run form does not expose `--rosetta`.

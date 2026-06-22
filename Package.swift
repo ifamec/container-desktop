@@ -8,13 +8,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ContainerDesktop",
-            path: ".",
-            exclude: [
-                ".gitignore", "README.md", "PONYTAIL_SKILL.md", "Tests", "Example", "scripts", "Packaging",
-                "Assets/container-desktop-app-icon-v3-source.png"
-            ],
-            sources: ["Sources/ContainerDesktop"],
-            resources: [.copy("Assets/container-desktop-app-icon-v3.png")]
+            path: "Sources/ContainerDesktop"
         )
     ],
     swiftLanguageModes: [.v6]

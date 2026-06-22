@@ -41,6 +41,13 @@ struct ContainerStats: Identifiable, Codable, Hashable, Sendable {
     var processes: String
 }
 
+enum ContainerAction: String, Sendable {
+    case start, stop, restart, kill, delete
+
+    var title: String { rawValue.capitalized }
+    func arguments(for containerID: String) -> [String] { [rawValue, containerID] }
+}
+
 struct RunConfiguration: Identifiable, Codable, Hashable, Sendable {
     var id = UUID()
     var name = ""
@@ -56,9 +63,9 @@ struct RunConfiguration: Identifiable, Codable, Hashable, Sendable {
     var arguments: [String] {
         var result = ["run", "--detach"]
         if !name.isEmpty { result += ["--name", name] }
-        for value in Self.lines(environment) { result += ["--env", value] }
-        for value in Self.lines(ports) { result += ["--publish", value] }
-        for value in Self.lines(mounts) { result += ["--mount", value] }
+        result += Self.repeatedOption("--env", values: environment)
+        result += Self.repeatedOption("--publish", values: ports)
+        result += Self.repeatedOption("--mount", values: mounts)
         if !cpu.isEmpty { result += ["--cpus", cpu] }
         if !memory.isEmpty { result += ["--memory", memory] }
         if autoRemove { result.append("--rm") }
@@ -68,7 +75,11 @@ struct RunConfiguration: Identifiable, Codable, Hashable, Sendable {
     }
 
     private static func lines(_ value: String) -> [String] {
-        value.split(whereSeparator: \Character.isNewline).map(String.init).filter { !$0.isEmpty }
+        value.split(whereSeparator: \Character.isNewline).map(String.init)
+    }
+
+    private static func repeatedOption(_ option: String, values: String) -> [String] {
+        lines(values).flatMap { [option, $0] }
     }
 
     static func shellWords(_ input: String) -> [String] {
@@ -76,21 +87,30 @@ struct RunConfiguration: Identifiable, Codable, Hashable, Sendable {
         var quote: Character?
         var escaped = false
         for character in input {
-            if escaped { current.append(character); escaped = false; continue }
-            if character == "\\" { escaped = true; continue }
+            if escaped {
+                current.append(character)
+                escaped = false
+                continue
+            }
+            if character == "\\" {
+                escaped = true
+                continue
+            }
             if let activeQuote = quote {
                 if character == activeQuote { quote = nil }
                 else { current.append(character) }
-            } else if character == "\"" || character == "'" { quote = character }
-            else if character.isWhitespace {
+            } else if character == "\"" || character == "'" {
+                quote = character
+            } else if character.isWhitespace {
                 if !current.isEmpty { words.append(current); current = "" }
-            } else { current.append(character) }
+            } else {
+                current.append(character)
+            }
         }
         if escaped { current.append("\\") }
         if !current.isEmpty { words.append(current) }
         return words
     }
-
 }
 
 enum CLIStatus: Equatable, Sendable {

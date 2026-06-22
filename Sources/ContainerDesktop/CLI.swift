@@ -99,36 +99,17 @@ actor ContainerCLIClient {
 
     func containers() async throws -> [ContainerSummary] {
         let result = try await command(["list", "--all", "--format", "json"])
-        return try Self.decodeArray(result.stdout).map { item in
-            let id = item.string("id", "ID", "name")
-            return ContainerSummary(id: id, name: item.string("name", "id", "ID"), image: item.string("image", "imageReference", "configuration.image.reference"), state: item.string("state", "status.state", "status"), address: item.string("address", "addr", "ipAddress", "status.networks.ipv4Address"), architecture: item.string("architecture", "arch", "configuration.platform.architecture"), createdAt: item.string("createdAt", "created", "configuration.creationDate"))
-        }
+        return try Self.decodeArray(result.stdout).map(Self.containerSummary)
     }
 
     func images() async throws -> [ImageSummary] {
         let result = try await command(["image", "list", "--format", "json"])
-        return try Self.decodeArray(result.stdout).map { item in
-            let rawReference = item.string("name", "reference", "repository", "configuration.name")
-            let split = Self.splitReference(rawReference)
-            return ImageSummary(reference: split.name, tag: item.string("tag").isEmpty ? split.tag : item.string("tag"), digest: item.string("digest", "descriptor.digest", "configuration.descriptor.digest", "id"), size: Self.byteString(item.number("size", "sizeBytes", "variants.size", "descriptor.size", "configuration.descriptor.size")), createdAt: item.string("createdAt", "created", "creationDate", "configuration.creationDate"))
-        }
+        return try Self.decodeArray(result.stdout).map(Self.imageSummary)
     }
 
     func stats() async throws -> [ContainerStats] {
         let result = try await command(["stats", "--no-stream", "--format", "json"])
-        return try Self.decodeArray(result.stdout).map { item in
-            let memory = item.string("memory", "memoryUsage")
-            let network = item.string("network", "networkIO")
-            let block = item.string("blockIO", "blockIo")
-            return ContainerStats(
-                id: item.string("id", "container", "containerID"),
-                cpu: item.string("cpu", "cpuPercent").or("\(item.number("cpuUsageUsec")) µs"),
-                memory: memory.or("\(Self.byteString(item.number("memoryUsageBytes"))) / \(Self.byteString(item.number("memoryLimitBytes")))"),
-                network: network.or("↓ \(Self.byteString(item.number("networkRxBytes")))  ↑ \(Self.byteString(item.number("networkTxBytes")))"),
-                blockIO: block.or("↓ \(Self.byteString(item.number("blockReadBytes")))  ↑ \(Self.byteString(item.number("blockWriteBytes")))"),
-                processes: item.string("processes", "pids", "numProcesses")
-            )
-        }
+        return try Self.decodeArray(result.stdout).map(Self.containerStats)
     }
 
     func inspect(_ id: String, summary: ContainerSummary) async throws -> ContainerDetails {
@@ -162,6 +143,46 @@ actor ContainerCLIClient {
         let value = try JSONSerialization.jsonObject(with: Data(json.utf8))
         guard let rows = value as? [[String: Any]] else { throw CLIError(command: "decode", exitCode: -1, output: "Expected a JSON array") }
         return rows.map(JSONItem.init)
+    }
+
+    private static func containerSummary(_ item: JSONItem) -> ContainerSummary {
+        let id = item.string("id", "ID", "name")
+        return ContainerSummary(
+            id: id,
+            name: item.string("name", "id", "ID"),
+            image: item.string("image", "imageReference", "configuration.image.reference"),
+            state: item.string("state", "status.state", "status"),
+            address: item.string("address", "addr", "ipAddress", "status.networks.ipv4Address"),
+            architecture: item.string("architecture", "arch", "configuration.platform.architecture"),
+            createdAt: item.string("createdAt", "created", "configuration.creationDate")
+        )
+    }
+
+    private static func imageSummary(_ item: JSONItem) -> ImageSummary {
+        let rawReference = item.string("name", "reference", "repository", "configuration.name")
+        let reference = splitReference(rawReference)
+        let explicitTag = item.string("tag")
+        return ImageSummary(
+            reference: reference.name,
+            tag: explicitTag.isEmpty ? reference.tag : explicitTag,
+            digest: item.string("digest", "descriptor.digest", "configuration.descriptor.digest", "id"),
+            size: byteString(item.number("size", "sizeBytes", "variants.size", "descriptor.size", "configuration.descriptor.size")),
+            createdAt: item.string("createdAt", "created", "creationDate", "configuration.creationDate")
+        )
+    }
+
+    private static func containerStats(_ item: JSONItem) -> ContainerStats {
+        let memory = item.string("memory", "memoryUsage")
+        let network = item.string("network", "networkIO")
+        let block = item.string("blockIO", "blockIo")
+        return ContainerStats(
+            id: item.string("id", "container", "containerID"),
+            cpu: item.string("cpu", "cpuPercent").or("\(item.number("cpuUsageUsec")) µs"),
+            memory: memory.or("\(byteString(item.number("memoryUsageBytes"))) / \(byteString(item.number("memoryLimitBytes")))"),
+            network: network.or("↓ \(byteString(item.number("networkRxBytes")))  ↑ \(byteString(item.number("networkTxBytes")))"),
+            blockIO: block.or("↓ \(byteString(item.number("blockReadBytes")))  ↑ \(byteString(item.number("blockWriteBytes")))"),
+            processes: item.string("processes", "pids", "numProcesses")
+        )
     }
 
     private static func splitReference(_ reference: String) -> (name: String, tag: String) {

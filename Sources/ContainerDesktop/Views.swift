@@ -1,40 +1,4 @@
-import AppKit
 import SwiftUI
-
-enum AppLayout {
-    static let pagePadding: CGFloat = 32
-    static let panelPadding: CGFloat = 24
-}
-
-struct PageHeader<Actions: View>: View {
-    let title: String
-    let subtitle: String?
-    @ViewBuilder let actions: Actions
-
-    init(_ title: String, subtitle: String? = nil, @ViewBuilder actions: () -> Actions) {
-        self.title = title
-        self.subtitle = subtitle
-        self.actions = actions()
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title).font(.largeTitle.bold())
-                if let subtitle { Text(subtitle).foregroundStyle(.secondary) }
-            }
-            Spacer(minLength: 12)
-            actions
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-extension PageHeader where Actions == EmptyView {
-    init(_ title: String, subtitle: String? = nil) {
-        self.init(title, subtitle: subtitle) { EmptyView() }
-    }
-}
 
 enum AppSection: String, CaseIterable, Identifiable {
     case dashboard = "Dashboard", containers = "Containers", images = "Images", builds = "Builds", settings = "Settings"
@@ -232,11 +196,11 @@ struct ContainerDetailView: View {
                 HStack(spacing: 10) {
                     if container.isRunning {
                         Button("Shell", systemImage: "terminal") { store.openShell(container) }
-                        Button("Stop", systemImage: "stop.fill") { store.lifecycle("stop", container: container) }
-                    } else { Button("Start", systemImage: "play.fill") { store.lifecycle("start", container: container) }.buttonStyle(.borderedProminent) }
+                        Button("Stop", systemImage: "stop.fill") { store.lifecycle(.stop, container: container) }
+                    } else { Button("Start", systemImage: "play.fill") { store.lifecycle(.start, container: container) }.buttonStyle(.borderedProminent) }
                     Menu("More", systemImage: "ellipsis.circle") {
-                        Button("Restart") { store.lifecycle("restart", container: container) }
-                        Button("Kill") { store.lifecycle("kill", container: container) }
+                        Button("Restart") { store.lifecycle(.restart, container: container) }
+                        Button("Kill") { store.lifecycle(.kill, container: container) }
                         Divider()
                         Button("Delete", role: .destructive) { confirmDelete = true }
                     }
@@ -251,7 +215,7 @@ struct ContainerDetailView: View {
                 }
             }.padding(AppLayout.panelPadding)
                 .task(id: container.id) { await load(container) }
-                .confirmationDialog("Delete \(container.name)?", isPresented: $confirmDelete) { Button("Delete Container", role: .destructive) { store.lifecycle("delete", container: container) } }
+                .confirmationDialog("Delete \(container.name)?", isPresented: $confirmDelete) { Button("Delete Container", role: .destructive) { store.lifecycle(.delete, container: container) } }
         } else { ContentUnavailableView("Select a container", systemImage: "shippingbox") }
     }
 
@@ -271,25 +235,4 @@ struct ContainerDetailView: View {
         inspect = (try? await store.client.inspect(container.id, summary: container).rawJSON) ?? "Inspect unavailable"
     }
     private func loadLogs(_ container: ContainerSummary) async { logs = (try? await store.client.logs(container.id)) ?? "Logs unavailable" }
-}
-
-struct LogView: View {
-    @Binding var text: String
-    @Binding var search: String
-    let refresh: () async -> Void
-    @State private var paused = false
-    var body: some View {
-        VStack {
-            HStack { TextField("Search logs", text: $search); Toggle("Pause", isOn: $paused).toggleStyle(.button); Button("Clear") { text = "" }; Button("Reload") { Task { await refresh() } } }
-            ScrollView([.horizontal, .vertical]) { Text(filtered).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
-        }
-    }
-    private var filtered: String { search.isEmpty ? text : text.split(separator: "\n").filter { $0.localizedCaseInsensitiveContains(search) }.joined(separator: "\n") }
-}
-
-struct OperationRow: View {
-    let operation: Operation
-    var body: some View {
-        HStack { Image(systemName: operation.status == .succeeded ? "checkmark.circle.fill" : operation.status == .failed ? "xmark.circle.fill" : "clock").foregroundStyle(operation.status == .failed ? .red : operation.status == .succeeded ? .green : .orange); VStack(alignment: .leading) { Text(operation.kind); Text(operation.command).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1) }; Spacer(); Text(operation.status.rawValue.capitalized).font(.caption) }.padding(.horizontal, 8)
-    }
 }

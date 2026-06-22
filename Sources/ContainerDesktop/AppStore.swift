@@ -4,6 +4,13 @@ import Foundation
 
 @MainActor
 final class AppStore: ObservableObject {
+    private enum PreferenceKey {
+        static let cliPath = "cliPath"
+        static let outputRetention = "outputRetention"
+        static let pollingInterval = "pollingInterval"
+        static let shellCommand = "shellCommand"
+    }
+
     @Published var status: CLIStatus = .checking
     @Published var containers: [ContainerSummary] = []
     @Published var images: [ImageSummary] = []
@@ -31,7 +38,7 @@ final class AppStore: ObservableObject {
         pollTask = Task {
             await refresh()
             while !Task.isCancelled {
-                let seconds = max(1, UserDefaults.standard.double(forKey: "pollingInterval").nonzero ?? 2)
+                let seconds = max(1, UserDefaults.standard.double(forKey: PreferenceKey.pollingInterval).nonzero ?? 2)
                 try? await Task.sleep(for: .seconds(seconds))
                 if appIsActive { await refresh() }
             }
@@ -63,26 +70,25 @@ final class AppStore: ObservableObject {
     func pushImage(_ image: ImageSummary) { perform(kind: "Push image", arguments: ["image", "push", image.displayName], timeout: .seconds(1800)) }
     func run(_ config: RunConfiguration) { perform(kind: "Run \(config.image)", arguments: config.arguments, timeout: .seconds(1800)) }
 
-    func lifecycle(_ action: String, container: ContainerSummary) {
+    func lifecycle(_ action: ContainerAction, container: ContainerSummary) {
         guard !busyContainers.contains(container.id) else { return }
         busyContainers.insert(container.id)
-        let args: [String]
-        switch action {
-        case "restart": args = ["stop", container.id, "&&", "start", container.id]
-        case "delete": args = ["delete", container.id]
-        default: args = [action, container.id]
-        }
-        if action == "restart" {
+
+        if action == .restart {
             Task {
                 defer { busyContainers.remove(container.id) }
                 do {
                     _ = try await client.command(["stop", container.id])
                     _ = try await client.command(["start", container.id])
                     await refresh()
-                } catch { errorMessage = error.localizedDescription }
+                } catch {
+                    errorMessage = error.localizedDescription
+                }
             }
         } else {
-            perform(kind: "\(action.capitalized) \(container.name)", arguments: args) { [weak self] in self?.busyContainers.remove(container.id) }
+            perform(kind: "\(action.title) \(container.name)", arguments: action.arguments(for: container.id)) { [weak self] in
+                self?.busyContainers.remove(container.id)
+            }
         }
     }
 
@@ -95,17 +101,19 @@ final class AppStore: ObservableObject {
     }
 
     func cancel(_ operation: Operation) {
-        if let index = operations.firstIndex(where: { $0.id == operation.id }), operations[index].status == .running {
-            operationTasks[operation.id]?.cancel()
-            operations[index].status = .cancelled
-            operations[index].endedAt = Date()
-        }
+        guard let index = operationIndex(operation.id), operations[index].status == .running else { return }
+        operationTasks[operation.id]?.cancel()
+        operations[index].status = .cancelled
+        operations[index].endedAt = Date()
     }
 
     func openShell(_ container: ContainerSummary) {
-        let shell = UserDefaults.standard.string(forKey: "shellCommand").flatMap { $0.isEmpty ? nil : $0 } ?? "sh"
+        let shell = UserDefaults.standard.string(forKey: PreferenceKey.shellCommand).flatMap { $0.isEmpty ? nil : $0 } ?? "sh"
         Task {
-            guard let executable = await client.executable() else { errorMessage = "Apple container is not installed"; return }
+            guard let executable = await client.executable() else {
+                errorMessage = "Apple container is not installed"
+                return
+            }
             let command = CommandLineFormatter.format(executable, ["exec", "--interactive", "--tty", container.id, shell])
             let script = "tell application \"Terminal\" to do script \"\(command.appleScriptEscaped)\"\ntell application \"Terminal\" to activate"
             var error: NSDictionary?
@@ -122,14 +130,10 @@ final class AppStore: ObservableObject {
 
     private func perform(kind: String, arguments: [String], timeout: Duration? = .seconds(60), completion: (() -> Void)? = nil) {
         let id = UUID()
-        let path = UserDefaults.standard.string(forKey: "cliPath").flatMap { $0.isEmpty ? nil : $0 } ?? "/usr/local/bin/container"
-        operations.insert(Operation(id: id, kind: kind, progress: nil, command: CommandLineFormatter.format(path, arguments)), at: 0)
-        let retention = max(5, UserDefaults.standard.integer(forKey: "outputRetention"))
-        if operations.count > retention { operations.removeLast(operations.count - retention) }
+        beginOperation(id: id, kind: kind, arguments: arguments)
+
         let task = Task {
-            let path = await client.executable() ?? "container"
-            let command = CommandLineFormatter.format(path, arguments)
-            if let index = operations.firstIndex(where: { $0.id == id }) { operations[index].command = command }
+            updateCommand(id: id, executable: await client.executable() ?? "container", arguments: arguments)
             do {
                 _ = try await client.command(arguments, timeout: timeout) { [weak self] chunk in
                     Task { @MainActor in self?.append(chunk, to: id) }
@@ -148,16 +152,45 @@ final class AppStore: ObservableObject {
         operationTasks[id] = task
     }
 
+    private func beginOperation(id: UUID, kind: String, arguments: [String]) {
+        let configuredPath = UserDefaults.standard.string(forKey: PreferenceKey.cliPath)
+        let executable = configuredPath.flatMap { $0.isEmpty ? nil : $0 } ?? "/usr/local/bin/container"
+        operations.insert(
+            Operation(
+                id: id,
+                kind: kind,
+                progress: nil,
+                command: CommandLineFormatter.format(executable, arguments)
+            ),
+            at: 0
+        )
+
+        let configuredRetention = UserDefaults.standard.integer(forKey: PreferenceKey.outputRetention)
+        let retention = max(5, configuredRetention == 0 ? 25 : configuredRetention)
+        if operations.count > retention {
+            operations.removeLast(operations.count - retention)
+        }
+    }
+
+    private func updateCommand(id: UUID, executable: String, arguments: [String]) {
+        guard let index = operationIndex(id) else { return }
+        operations[index].command = CommandLineFormatter.format(executable, arguments)
+    }
+
     private func append(_ output: String, to id: UUID) {
-        guard let index = operations.firstIndex(where: { $0.id == id }), operations[index].status == .running else { return }
+        guard let index = operationIndex(id), operations[index].status == .running else { return }
         operations[index].output += ContainerCLIClient.sanitize(output)
     }
 
     private func finish(_ id: UUID, status: Operation.Status, output: String) {
-        guard let index = operations.firstIndex(where: { $0.id == id }) else { return }
+        guard let index = operationIndex(id) else { return }
         operations[index].status = status
         operations[index].output = ContainerCLIClient.sanitize(output)
         operations[index].endedAt = Date()
+    }
+
+    private func operationIndex(_ id: UUID) -> Int? {
+        operations.firstIndex { $0.id == id }
     }
 }
 
