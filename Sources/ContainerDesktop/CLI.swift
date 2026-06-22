@@ -62,7 +62,7 @@ struct ProcessExecutor: CommandExecuting {
 enum CommandLineFormatter {
     static func format(_ executable: String, _ arguments: [String]) -> String {
         ([executable] + arguments).map { value in
-            value.allSatisfy { $0.isLetter || $0.isNumber || "-._/:=@,".contains($0) }
+            !value.isEmpty && value.allSatisfy { $0.isLetter || $0.isNumber || "-._/:=@,".contains($0) }
                 ? value : "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
         }.joined(separator: " ")
     }
