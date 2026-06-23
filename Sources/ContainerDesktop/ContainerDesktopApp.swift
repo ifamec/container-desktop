@@ -19,7 +19,8 @@ struct ContainerDesktopApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
-            SidebarCommands()
+            StandardViewCommands()
+            StandardWindowCommands()
             StandardEditCommands()
         }
     }
@@ -47,6 +48,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+}
+
+struct StandardViewCommands: Commands {
+    var body: some Commands {
+        CommandGroup(replacing: .sidebar) { EmptyView() }
+        CommandGroup(replacing: .toolbar) {
+            Button("Enter Full Screen") { send(#selector(NSWindow.toggleFullScreen(_:))) }
+                .keyboardShortcut("f", modifiers: [.control, .command])
+        }
+    }
+
+    private func send(_ action: Selector) {
+        NSApp.sendAction(action, to: nil, from: nil)
+    }
+}
+
+struct StandardWindowCommands: Commands {
+    var body: some Commands {
+        CommandGroup(replacing: .windowArrangement) {
+            Button("Minimize") { send(#selector(NSWindow.performMiniaturize(_:))) }
+                .keyboardShortcut("m", modifiers: .command)
+            Button("Zoom") { send(#selector(NSWindow.performZoom(_:))) }
+            Divider()
+            Button("Bring All to Front") { NSApp.arrangeInFront(nil) }
+        }
+    }
+
+    private func send(_ action: Selector) {
+        NSApp.sendAction(action, to: nil, from: nil)
+    }
 }
 
 struct StandardEditCommands: Commands {
