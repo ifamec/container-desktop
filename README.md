@@ -1,6 +1,12 @@
+<p align="center">
+  <img src="Assets/container-desktop-app-icon-v3.png" alt="Container Desktop app icon" width="128" height="128">
+</p>
+
 # Container Desktop
 
 A native SwiftUI interface for [Apple container](https://github.com/apple/container). Container Desktop provides familiar container, image, build, log, and resource-management workflows while keeping the underlying CLI commands visible.
+
+Current version: **1.0.0**
 
 ## Features
 
@@ -276,13 +282,17 @@ The default ad-hoc signature is suitable for local builds. For Developer ID sign
 
 ```sh
 CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
-APP_VERSION="0.1.0" \
+APP_VERSION="1.0.0" \
 BUILD_NUMBER="1" \
 BUNDLE_IDENTIFIER="com.example.containerdesktop" \
 ./scripts/build-app.sh
 ```
 
 Developer ID builds must be notarized before public distribution. Container Desktop is intentionally not sandboxed because it executes the installed CLI and accesses user-selected build contexts.
+
+## License
+
+Container Desktop is open source under the [MIT License](LICENSE).
 
 ## Troubleshooting
 
